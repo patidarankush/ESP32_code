@@ -64,8 +64,8 @@ void setup()
 
 int value = 0;
 
-void loop(){
- WiFiClient client = server.available();   // listen for incoming clients
+void wifisetup(){
+   WiFiClient client = server.available();   // listen for incoming clients
 
   if (client) {                             // if you get a client,
     Serial.println("New Client.");           // print a message out the serial port
@@ -113,4 +113,10 @@ void loop(){
     client.stop();
     Serial.println("Client Disconnected.");
   }
+}
+
+void loop(){
+
+wifisetup();
+
 }
