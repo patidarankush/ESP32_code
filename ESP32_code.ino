@@ -26,55 +26,93 @@ ported for sparkfun esp32
  */
 
 #include <WiFi.h>
+#include <SPI.h>
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+#include <SparkFunHTU21D.h>
 
-const char* ssid     = "POCO M2";
+const char* ssid = "POCO M2";
 const char* password = "newp0011";
 
 WiFiServer server(80);
 
-void setup()
-{
-    Serial.begin(115200);
-    pinMode(21, OUTPUT);      // set the LED pin mode
+#define SCREEN_WIDTH 128  // OLED display width, in pixels
+#define SCREEN_HEIGHT 64  // OLED display height, in pixels
 
-    delay(10);
+// Declaration for an SSD1306 display connected to I2C (SDA, SCL pins)
+#define OLED_RESET -1  // Reset pin # (or -1 if sharing Arduino reset pin)
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
-    // We start by connecting to a WiFi network
+//humidity and temprature value calculation
+//Create an instance of the object
+HTU21D myHumidity;
 
-    Serial.println();
-    Serial.println();
-    Serial.print("Connecting to ");
-    Serial.println(ssid);
+//soil moisture sensor variable declaration
+// #define AOUT_PIN 14 // // ESP32 pin GIOP36 (ADC0) that connects to AOUT pin of moisture sensor
+// # define sensorPin 36
+int sensor_pin = 36;
+int Moisturedata;
 
-    WiFi.begin(ssid, password);
+void setup() {
+  Serial.begin(115200);
+  pinMode(21, OUTPUT);  // set the LED pin mode
 
-    while (WiFi.status() != WL_CONNECTED) {
-        delay(500);
-        Serial.print(".");
-    }
+  Wire.begin();
+  delay(10);
 
-    Serial.println("");
-    Serial.println("WiFi connected.");
-    Serial.println("IP address: ");
-    Serial.println(WiFi.localIP());
-    
-    server.begin();
+  //humidity and temprature setup
+  myHumidity.begin();
 
+  //trial code humidity and temprature setup
+  //  bool status = myHumidity.begin();  
+  // if (!status) {
+  //   Serial.println("Could not find a valid HUmidity sensor sensor, check wiring!");
+  //   while (1);
+  // }
+
+  //lcd display setup
+  if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+    Serial.println(F("SSD1306 allocation failed"));
+    for (;;)
+      ;  // Don't proceed, loop forever  //TODO  Take care here
+  }
+
+  // We start by connecting to a WiFi network
+
+  Serial.println();
+  Serial.println();
+  Serial.print("Connecting to ");
+  Serial.println(ssid);
+
+  WiFi.begin(ssid, password);
+
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+
+  Serial.println("");
+  Serial.println("WiFi connected.");
+  Serial.println("IP address: ");
+  Serial.println(WiFi.localIP());
+
+  server.begin();
 }
 
 int value = 0;
 
-void wifisetup(){
-   WiFiClient client = server.available();   // listen for incoming clients
+void wifisetup() {
+  WiFiClient client = server.available();  // listen for incoming clients
 
-  if (client) {                             // if you get a client,
-    Serial.println("New Client.");           // print a message out the serial port
-    String currentLine = "";                // make a String to hold incoming data from the client
-    while (client.connected()) {            // loop while the client's connected
-      if (client.available()) {             // if there's bytes to read from the client,
-        char c = client.read();             // read a byte, then
-        Serial.write(c);                    // print it out the serial monitor
-        if (c == '\n') {                    // if the byte is a newline character
+  if (client) {                     // if you get a client,
+    Serial.println("New Client.");  // print a message out the serial port
+    String currentLine = "";        // make a String to hold incoming data from the client
+    while (client.connected()) {    // loop while the client's connected
+      if (client.available()) {     // if there's bytes to read from the client,
+        char c = client.read();     // read a byte, then
+        Serial.write(c);            // print it out the serial monitor
+        if (c == '\n') {            // if the byte is a newline character
 
           // if the current line is blank, you got two newline characters in a row.
           // that's the end of the client HTTP request, so send a response:
@@ -93,7 +131,7 @@ void wifisetup(){
             client.println();
             // break out of the while loop:
             break;
-          } else {    // if you got a newline, then clear currentLine:
+          } else {  // if you got a newline, then clear currentLine:
             currentLine = "";
           }
         } else if (c != '\r') {  // if you got anything else but a carriage return character,
@@ -102,10 +140,10 @@ void wifisetup(){
 
         // Check to see if the client request was "GET /H" or "GET /L":
         if (currentLine.endsWith("GET /H")) {
-          digitalWrite(21, HIGH);               // GET /H turns the LED on
+          digitalWrite(21, HIGH);  // GET /H turns the LED on
         }
         if (currentLine.endsWith("GET /L")) {
-          digitalWrite(21, LOW);                // GET /L turns the LED off
+          digitalWrite(21, LOW);  // GET /L turns the LED off
         }
       }
     }
@@ -115,8 +153,102 @@ void wifisetup(){
   }
 }
 
-void loop(){
+//soil moisture funciton
+//soil moisture function
+void Moisture() {
+  // int value = analogRead(AOUT_PIN); // read the analog value from sensor
 
-wifisetup();
+  // Serial.print("The soil Moisture is : ");
+  // Serial.println(value);
+  // Serial.println(" ");
+  // delay(2000);
 
+  Moisturedata = analogRead(sensor_pin);
+  Moisturedata = map(Moisturedata, 550, 0, 0, 100);
+  Serial.print("Moisture : ");
+  Serial.print(Moisturedata);
+  Serial.println("%");
+  delay(1000);
+}
+
+void lcddisplay() {
+
+  display.clearDisplay();
+
+  display.setTextSize(1);       // Normal 1:1 pixel scale
+  display.setTextColor(WHITE);  // Draw white text
+  display.setCursor(0, 0);      // Start at top-left corner
+  display.println(F("Ankush Here"));
+  // display.println(F(myString));
+  // display.println(F(data));
+  display.display();
+  delay(2000);
+}
+
+//function for reading temprature and humidity
+void Tempcal(){
+   Wire.beginTransmission(0x40);
+    float humd = myHumidity.readHumidity();
+  float temp = myHumidity.readTemperature();
+
+  Serial.print("Time:");
+  Serial.print(millis());
+  Serial.print(" Temperature:");
+  Serial.print(temp, 1);
+  Serial.print("C");
+  Serial.print(" Humidity:");
+  Serial.print(humd, 1);
+  Serial.print("%");
+
+  Serial.println();
+  Wire.endTransmission();
+
+}
+
+// I2c Scan Function
+void Itwoc() {
+  int nDevices = 0;
+
+  Serial.println("Scanning...");
+
+  for (byte address = 1; address < 127; ++address) {
+    // The i2c_scanner uses the return value of
+    // the Wire.endTransmission to see if
+    // a device did acknowledge to the address.
+    Wire.beginTransmission(address);
+    byte error = Wire.endTransmission();
+
+    if (error == 0) {
+      Serial.print("I2C device found at address 0x");
+      if (address < 16) {
+        Serial.print("0");
+      }
+      Serial.print(address, HEX);
+      Serial.println("  !");
+
+      ++nDevices;
+    } else if (error == 4) {
+      Serial.print("Unknown error at address 0x");
+      if (address < 16) {
+        Serial.print("0");
+      }
+      Serial.println(address, HEX);
+    }
+  }
+  if (nDevices == 0) {
+    Serial.println("No I2C devices found\n");
+  } else {
+    Serial.println("done\n");
+  }
+  delay(5000);  // Wait 5 seconds for next scan
+}
+
+
+void loop() {
+
+  wifisetup();
+  Itwoc();
+  Moisture();
+  lcddisplay();
+  Tempcal();
 }
